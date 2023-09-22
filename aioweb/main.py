@@ -119,6 +119,7 @@ class Schedule:
 # TODO Rethink URLs
 # TODO Separate creation from starting
 # TODO Add an optional delay to start
+# TODO Split source code into web, schedule
 
 # theSchedule: Schedule | None = None
 
@@ -135,9 +136,10 @@ def set_schedule(request, sched):
     request.app['schedules'][name] = sched
 
 @routes.get('/')
-async def get_sked_list(_request):
-    schedule_names = list(_request.app['schedules'].keys())
-    return web.json_response({'schedules':schedule_names})
+async def get_sked_list(request):
+    allSchedules = request.app['schedules']
+    all_info = {nm:sk.info() for nm,sk in allSchedules.items()}
+    return web.json_response(all_info)
 
 @routes.get('/{sked}')
 async def get_info(request):
