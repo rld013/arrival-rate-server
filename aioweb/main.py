@@ -59,6 +59,16 @@ class Schedule:
         self.running = False
         self.start_time = None
 
+    @property
+    def status(self):
+        if self.running:
+            return 'running'
+        elif self.start_time is None:
+            return 'ready'
+        else:
+            return 'done'
+
+
     def unget(self, delay):
         deque_insert_ordered(self.arrivals, delay)
         _logger.warning("unget of delay %f len(arrivals) now %d", delay, len(self.arrivals))
@@ -75,6 +85,7 @@ class Schedule:
             start_time = start_time,
             running = self.running,
             underrun_count = self.underrun_count,
+            status = self.status
         )
 
     def start(self):
@@ -117,60 +128,62 @@ class Schedule:
 # Done Store schedule in app rather than global
 # Done Handle client disconnect (push arrival back on deque)
 # TODO Rethink URLs
-# TODO Separate creation from starting
+# TODO Separate creation from starting and/or autostart
 # TODO Add an optional delay to start
 # TODO Split source code into web, schedule
-
-# theSchedule: Schedule | None = None
+# TODO Add other protocols (WebSocket, Server-sent events, SockJS)
 
 def get_schedule(request) -> Schedule|None:
-    name = request.match_info['sked']
+    name = request.match_info['schedule']
     try:
         return request.app['schedules'][name]
     except KeyError:
         return None
 
 def set_schedule(request, sched):
-    name = request.match_info['sked']
+    name = request.match_info['schedule']
 
     request.app['schedules'][name] = sched
 
+
 @routes.get('/')
-async def get_sked_list(request):
+async def get_schedule_list(request):
     allSchedules = request.app['schedules']
     all_info = {nm:sk.info() for nm,sk in allSchedules.items()}
     return web.json_response(all_info)
 
-@routes.get('/{sked}')
+
+@routes.get('/{schedule}')
 async def get_info(request):
     theSchedule = get_schedule(request)
-    if theSchedule:
-        return web.json_response(theSchedule.info())
-    else:
-        return web.json_response({'schedule':None})
+    if theSchedule is None:
+        return web.json_response({'schedule':None}, status=404, reason="No such schedule")
+    return web.json_response(theSchedule.info())
 
-@routes.get('/{sked}/go')
+
+@routes.get('/{schedule}/wait')
 async def get_go(request):
     theSchedule = get_schedule(request)
-    if theSchedule and theSchedule.running:
-        status, delay, arrival = await theSchedule.pause_til_next()
-        _logger.info("/go -> %s delay %s arrival %s", status, delay, arrival)
+    if theSchedule is None:
+        return web.json_response({'schedule':None}, status=404, reason="No such schedule")
+    status, delay, arrival = await theSchedule.pause_til_next()
+    _logger.info("/wait -> %s delay %s arrival %s", status, delay, arrival)
+    if status == 'missed':
+        http_status = 418
     else:
-        _logger.info("stop")
-        delay = None
-        status = "stop"
-        arrival = None
-    resp = web.json_response({'status':status, 'arrival': arrival})
+        http_status = 200
+    resp = web.json_response({'status':status, 'arrival': arrival}, status=http_status)
     try:
         await resp.prepare(request)
         await resp.write_eof()
-    except:
+    except OSError:
+        # In case client has disconnected, put the schedule back in the queue
         if delay is not None:
             theSchedule.unget(delay)
-    return resp
+    return resp # resp has already been sent so this is a no-op
 
 
-@routes.get("/{sked}/start")
+@routes.get("/{schedule}/start")
 async def start_service(request):
     arrival_rate = float(request.query.get('arrival_rate', 1.0))
     duration = float(request.query.get('duration', 10.0))
@@ -181,11 +194,12 @@ async def start_service(request):
     return web.json_response(theSchedule.info())
 
 
-# app.route("/stop")
-@routes.get('/{sked}/stop')
+@routes.get('/{schedule}/stop')
 async def stop_service(request):
     theSchedule = get_schedule(request)
-    if theSchedule and theSchedule.running:
+    if theSchedule is None:
+        return web.json_response({'schedule':None}, status=404, reason="No such schedule")
+    if theSchedule.running:
         _logger.info("stopping")
         theSchedule.stop()
         info = theSchedule.info()
