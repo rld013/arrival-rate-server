@@ -1,20 +1,23 @@
 # Introduction 
-TODO: Give a short introduction of your project. Let this section explain the objectives or the motivation behind this project. 
 
-# Getting Started
-TODO: Guide users through getting your code up and running on their own system. In this section you can talk about:
-1.	Installation process
-2.	Software dependencies
-3.	Latest releases
-4.	API references
+This is a minimal scheduling service with a REST-style interface. The service allows you to create a Schedule (a series of instants) then draw samples from that Schedule. The purpose is to simulate a Poisson arrival process for load testing.
 
-# Build and Test
-TODO: Describe and show how to build your code and run the tests. 
+The only entity is a Schedule; operations available on a Schedule are 
+- create
+- start _not implemented_
+- info
+- wait
+- draw _not implemented_
+- stop
+- delete _not implemented_
 
-# Contribute
-TODO: Explain how other users and developers can contribute to make your code better. 
+# Installation
 
-If you want to learn more about creating good readme files then refer the following [guidelines](https://docs.microsoft.com/en-us/azure/devops/repos/git/create-a-readme?view=azure-devops). You can also seek inspiration from the below readme files:
-- [ASP.NET Core](https://github.com/aspnet/Home)
-- [Visual Studio Code](https://github.com/Microsoft/vscode)
-- [Chakra Core](https://github.com/Microsoft/ChakraCore)
+This is a Python 3 app. The requirements are listed in the "requirements.txt" file.
+
+The service is built on aiohttp.
+
+# Use
+
+## API Reference
+
