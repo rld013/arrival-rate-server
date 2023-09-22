@@ -153,7 +153,7 @@ async def get_schedule_list(request):
     return web.json_response(all_info)
 
 
-@routes.get('/{schedule}')
+@routes.get('/{schedule}/info')
 async def get_info(request):
     theSchedule = get_schedule(request)
     if theSchedule is None:
