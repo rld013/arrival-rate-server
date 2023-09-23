@@ -143,7 +143,10 @@ def get_schedule(request) -> Schedule|None:
 def set_schedule(request, sched):
     name = request.match_info['schedule']
 
-    request.app['schedules'][name] = sched
+    if sched:
+        request.app['schedules'][name] = sched
+    else:
+        request.app['schedules'].pop(name, None)
 
 
 @routes.get('/')
@@ -166,6 +169,10 @@ async def get_go(request):
     theSchedule = get_schedule(request)
     if theSchedule is None:
         return web.json_response({'schedule':None}, status=404, reason="No such schedule")
+
+    if not theSchedule.running:
+        theSchedule.start()
+
     status, delay, arrival = await theSchedule.pause_til_next()
     _logger.info("/wait -> %s delay %s arrival %s", status, delay, arrival)
     if status == 'missed':
@@ -183,19 +190,30 @@ async def get_go(request):
     return resp # resp has already been sent so this is a no-op
 
 
-@routes.get("/{schedule}/start")
-async def start_service(request):
-    arrival_rate = float(request.query.get('arrival_rate', 1.0))
-    duration = float(request.query.get('duration', 10.0))
+@routes.put("/{schedule}")
+async def create_schedule(request):
+    params = await request.post()
+    arrival_rate = float(params.get('arrival_rate', 1.0))
+    duration = float(params.get('duration', 10.0))
     theSchedule = Schedule(arrival_rate, duration)
     set_schedule(request, theSchedule)
+    # theSchedule.start()
+    _logger.info("created")
+    return web.json_response(theSchedule.info())
+
+
+@routes.post("/{schedule}/start")
+async def start_schedule(request):
+    theSchedule = get_schedule(request)
+    if theSchedule is None:
+        return web.json_response({'schedule':None}, status=404, reason="No such schedule")
     theSchedule.start()
     _logger.info("started")
     return web.json_response(theSchedule.info())
 
 
 @routes.get('/{schedule}/stop')
-async def stop_service(request):
+async def stop_schedule(request):
     theSchedule = get_schedule(request)
     if theSchedule is None:
         return web.json_response({'schedule':None}, status=404, reason="No such schedule")
@@ -208,6 +226,17 @@ async def stop_service(request):
         info = {'status': 'stopped'}
 
     return web.json_response(info)
+
+
+@routes.delete('/{schedule}')
+async def delete_schedule(request):
+    old_sched = set_schedule(request, None)
+    if old_sched:
+        old_sched_info = old_sched.info()
+    else:
+        old_sched_info = {'schedule': None}
+    return web.json_response(old_sched_info, status=200)
+
 
 app = web.Application()
 app.add_routes(routes)
