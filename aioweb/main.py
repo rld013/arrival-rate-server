@@ -47,6 +47,8 @@ def deque_insert_ordered(dq:deque[T], iv:T):
 
 class Schedule:
     def __init__(self, rate, duration):
+        self.rate = rate
+        self.duration = duration
         self.underrun_count = 0
         self.arrival_count = int(math.ceil(duration * rate))
         arrivals = [
@@ -128,10 +130,11 @@ class Schedule:
 # Done Store schedule in app rather than global
 # Done Handle client disconnect (push arrival back on deque)
 # TODO Rethink URLs
-# TODO Separate creation from starting and/or autostart
+# Done Separate creation from starting and/or autostart
 # TODO Add an optional delay to start
 # TODO Split source code into web, schedule
 # TODO Add other protocols (WebSocket, Server-sent events, SockJS)
+# TODO Add an autorenew capability so a Schedule will optionally restart when it's exhausted
 
 def get_schedule(request) -> Schedule|None:
     name = request.match_info['schedule']
@@ -139,6 +142,7 @@ def get_schedule(request) -> Schedule|None:
         return request.app['schedules'][name]
     except KeyError:
         return None
+
 
 def set_schedule(request, sched):
     name = request.match_info['schedule']
@@ -175,10 +179,13 @@ async def get_go(request):
 
     status, delay, arrival = await theSchedule.pause_til_next()
     _logger.info("/wait -> %s delay %s arrival %s", status, delay, arrival)
-    if status == 'missed':
-        http_status = 418
-    else:
-        http_status = 200
+    match status:
+        case 'missed':
+            http_status = 418
+        case 'done':
+            http_status = 410
+        case _:
+            http_status = 200
     resp = web.json_response({'status':status, 'arrival': arrival}, status=http_status)
     try:
         await resp.prepare(request)
