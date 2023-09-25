@@ -5,8 +5,10 @@ import random
 import time
 from collections import deque
 from datetime import datetime, timezone
+from enum import Enum
 from typing import TypeVar
 
+import aiohttp
 from aiohttp import web
 routes = web.RouteTableDef()
 
@@ -44,6 +46,14 @@ def deque_insert_ordered(dq:deque[T], iv:T):
     else:
         ix = ix + 1
     dq.insert(ix, iv)
+
+
+class SampleStatus(Enum):
+    "Value is HTTP status code"
+    OK = 200
+    MISSED = 418
+    DONE = 410
+
 
 class Schedule:
     def __init__(self, rate, duration):
@@ -99,20 +109,20 @@ class Schedule:
         self.running = False
         _logger.info("Schedule stopped")
 
-    async def pause_til_next(self):
+    async def pause_til_next(self) -> (SampleStatus, float, float):
         delay, arrival = self._next_delay()
         match delay:
             case None:
-                status = 'done'
+                status = SampleStatus.DONE
             case _ if delay < 0:
                 self.underrun_count += 1
-                status = 'missed'
+                status = SampleStatus.MISSED
             case _:
                 await asyncio.sleep(delay)
-                status = 'ok'
+                status = SampleStatus.OK
         return status, delay, arrival
 
-    def _next_delay(self):
+    def _next_delay(self) -> (float, float):
         if not self.running:
             return None, None
         try:
@@ -136,12 +146,12 @@ class Schedule:
 # TODO Add other protocols (WebSocket, Server-sent events, SockJS)
 # TODO Add an autorenew capability so a Schedule will optionally restart when it's exhausted
 
-def get_schedule(request) -> Schedule|None:
+def get_schedule(request) -> Schedule:
     name = request.match_info['schedule']
     try:
         return request.app['schedules'][name]
     except KeyError:
-        return None
+        raise aiohttp.web.HTTPNotFound(reason="Schedule not found")
 
 
 def set_schedule(request, sched):
@@ -163,30 +173,19 @@ async def get_schedule_list(request):
 @routes.get('/{schedule}/info')
 async def get_info(request):
     theSchedule = get_schedule(request)
-    if theSchedule is None:
-        return web.json_response({'schedule':None}, status=404, reason="No such schedule")
     return web.json_response(theSchedule.info())
 
 
 @routes.get('/{schedule}/wait')
 async def get_go(request):
     theSchedule = get_schedule(request)
-    if theSchedule is None:
-        return web.json_response({'schedule':None}, status=404, reason="No such schedule")
 
     if not theSchedule.running:
         theSchedule.start()
 
     status, delay, arrival = await theSchedule.pause_til_next()
     _logger.info("/wait -> %s delay %s arrival %s", status, delay, arrival)
-    match status:
-        case 'missed':
-            http_status = 418
-        case 'done':
-            http_status = 410
-        case _:
-            http_status = 200
-    resp = web.json_response({'status':status, 'arrival': arrival}, status=http_status)
+    resp = web.json_response({'status':status.name.lower(), 'arrival': arrival}, status=status.value)
     try:
         await resp.prepare(request)
         await resp.write_eof()
@@ -212,18 +211,14 @@ async def create_schedule(request):
 @routes.post("/{schedule}/start")
 async def start_schedule(request):
     theSchedule = get_schedule(request)
-    if theSchedule is None:
-        return web.json_response({'schedule':None}, status=404, reason="No such schedule")
     theSchedule.start()
     _logger.info("started")
     return web.json_response(theSchedule.info())
 
 
-@routes.get('/{schedule}/stop')
+@routes.post('/{schedule}/stop')
 async def stop_schedule(request):
     theSchedule = get_schedule(request)
-    if theSchedule is None:
-        return web.json_response({'schedule':None}, status=404, reason="No such schedule")
     if theSchedule.running:
         _logger.info("stopping")
         theSchedule.stop()
