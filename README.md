@@ -7,7 +7,9 @@ The only entity is a Schedule; operations available on a Schedule are
 - start
 - info
 - wait -> 200 _Success_, 418 _Missed_, 410 _Done_
+  - May delay an arbitrary amount of time, until the next arrival time
 - draw _not implemented_
+  - Produce the next arrival time immediately. The client must delay until that time.
 - stop
 - delete
 

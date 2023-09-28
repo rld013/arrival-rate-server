@@ -1,0 +1,196 @@
+openapi: "3.0.2"
+info:
+  title: Arrival Rate Service
+  version: "1.0"
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: schedule
+    description: create, use, and delete a schedule
+
+paths:
+  /:
+    get:
+      tags: [schedule]
+      description: List all schedules
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Schedule'
+
+  /{schedule_id}:
+    parameters:
+      - $ref: '#/components/parameters/ScheduleParam'
+    put:
+      description: Create a schedule
+      operationId: create_schedule
+      tags: [ schedule ]
+
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Schedule'
+
+    delete:
+      description: Delete a schedule
+      operationId: delete_schedule
+      tags: [ schedule ]
+
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Schedule'
+
+  /{schedule_id}/info:
+    parameters:
+      - $ref: '#/components/parameters/ScheduleParam'
+    get:
+      description: Get info about a schedule
+      operationId: get_info
+      tags: [schedule]
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Schedule'
+
+
+  /{schedule_id}/wait:
+    parameters:
+      - $ref: '#/components/parameters/ScheduleParam'
+    get:
+      description: Wait for a scheduled arrival. Note that this 
+        may take an arbitrarily long time to respond, as it waits until
+        the next arrrival time in the schedule before responding.
+        If the connection is dropped, the arrival time will not be consumed,
+        so a reconnect should be attempted.
+        
+        If the schedule is not started, it will start at the first /wait request.
+      
+        When a schedule is exhausted, it will stop.
+      operationId: get_go
+      tags: [ schedule ]
+
+      responses:
+        200:
+          description: OK. An arrival was available and that time has been reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleResponse'
+              example:
+                status: ok
+        418:
+          description: Missed. The next scheduled arrival time has passed. You missed it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleResponse'
+              example:
+                status: missed
+        410:
+          description: Done. The schedule has been consumed, there are no more
+            arrivals. The schedule is stopped.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleResponse'
+              example:
+                status: done
+
+  /{schedule_id}/start:
+    parameters:
+      - $ref: '#/components/parameters/ScheduleParam'
+    get:
+      description: Start a schedule
+      operationId: start_schedule
+      tags: [schedule]
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Schedule'
+
+  /{schedule_id}/stop:
+    parameters:
+      - $ref: '#/components/parameters/ScheduleParam'
+    get:
+      description: Stop a schedule
+      operationId: stop_schedule
+      tags: [schedule]
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Schedule'
+
+components:
+  parameters:
+    ScheduleParam:
+      name: schedule_id
+      in: path
+      description: ID of schedule
+      required: true
+      schema:
+        type: string
+  schemas:
+    Schedule:
+      type: object
+      properties:
+        name:
+          type: string
+          example: 5bd9bca8-b355-4a64-9157-11b165df034f
+        arrival_count:
+          type: integer
+          format: int64
+          example: 600
+        arrival_remain_count:
+          type: integer
+          format: int64
+          example: 61
+        start_time:
+          type: string
+          format: date-time
+          example: 2023-08-31T14:31:00Z
+        running:
+          type: boolean
+        underrun_count:
+          type: integer
+          format: int64
+          example: 0
+        status:
+          type: string
+          description: Schedule status
+          example: ready
+          enum:
+            - running
+            - ready
+            - done
+    ScheduleResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+            - missed
+            - done
