@@ -21,5 +21,15 @@ The service is built on aiohttp.
 
 # Use
 
+The schedule server uses `asyncio.sleep(delay)` to wait for the next scheduled time.
+The granularity of this sleep depends on the resolution of the underlying clock, 
+`time.monotonic()`. See [PEP 418](https://peps.python.org/pep-0418/) and `_clock_resolution`
+in [asyncio/base_events.py](https://github.com/python/cpython/blob/main/Lib/asyncio/base_events.py)
+
+If you need more than 1,000 arrivals per second, you should divide the scheduling work among
+several independent copies of this service. Since each arrival is independent, the
+cumulative schedule will be the same (stochastically) as if you'd piled the whole
+schedule on one service.
+
 ## API Reference
 

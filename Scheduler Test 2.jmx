@@ -440,7 +440,12 @@
             <stringProp name="IfController.condition">${JMeterThread.last_sample_ok}</stringProp>
           </IfController>
           <hashTree>
-            <kg.apc.jmeter.samplers.DummySampler guiclass="kg.apc.jmeter.samplers.DummySamplerGui" testclass="kg.apc.jmeter.samplers.DummySampler" testname="jp@gc - Dummy Sampler" enabled="true">
+            <TransactionController guiclass="TransactionControllerGui" testclass="TransactionController" testname="SUT Controller" enabled="true">
+              <boolProp name="TransactionController.includeTimers">false</boolProp>
+              <boolProp name="TransactionController.parent">false</boolProp>
+            </TransactionController>
+            <hashTree/>
+            <kg.apc.jmeter.samplers.DummySampler guiclass="kg.apc.jmeter.samplers.DummySamplerGui" testclass="kg.apc.jmeter.samplers.DummySampler" testname="Dummy SUT Sampler" enabled="true">
               <boolProp name="WAITING">true</boolProp>
               <boolProp name="SUCCESFULL">true</boolProp>
               <stringProp name="RESPONSE_CODE">200</stringProp>

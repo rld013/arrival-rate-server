@@ -4,7 +4,7 @@ import aiohttp
 from aiohttp import web
 from aiohttp.abc import Request
 
-from aioweb.schedule import Schedule
+from webservice.schedule import Schedule
 
 routes = web.RouteTableDef()
 
