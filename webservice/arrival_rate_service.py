@@ -36,7 +36,7 @@ def set_schedule(request: Request, sched: Schedule | None) -> Schedule | None:
     name = get_schedule_name(request)
 
     prev_sched = request.app['schedules'].pop(name, None)
-    if sched:
+    if sched is not None:
         request.app['schedules'][name] = sched
     else:
         pass
@@ -97,8 +97,8 @@ async def get_go(request: Request):
         await resp.write_eof()
     except OSError:
         # In case client has disconnected, put the schedule back in the queue
-        if delay is not None:
-            the_schedule.unget(delay)
+        if arrival is not None:
+            the_schedule.unget(arrival)
     return resp    # resp has already been sent so this is a no-op
 
 
@@ -123,9 +123,14 @@ async def stop_schedule(request: Request):
     return web.json_response(info)
 
 
-app = web.Application()
-app.add_routes(routes)
-app['schedules'] = dict()
+def init_app(app):
+    if app is None:
+        app = web.Application()
+    app.add_routes(routes)
+    app['schedules'] = dict()
+    return app
+
 
 if __name__ == '__main__':
+    app = init_app()
     web.run_app(app)
