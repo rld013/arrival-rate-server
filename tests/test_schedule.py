@@ -17,16 +17,16 @@ def assert_order(sked:Schedule):
     pairlist = []
     while skopy:
         pairlist.append(skopy._next_delay())
-    assert is_sorted([z[0] for z in pairlist])
-    assert is_sorted([z[1] for z in pairlist])
+    assert is_sorted([z[0] for z in pairlist]), f"List {[z[0] for z in pairlist]} is not in order"
+    assert is_sorted([z[1] for z in pairlist]), f"List {[z[1] for z in pairlist]} is not in order"
 
 
-async def test_unget_happy():
+async def test_unget_positive():
     sked = Schedule(0.5, 10)
     sked.start()
     ungets = []
     for i in range(3):
-        status, delay, arrival = await sked.pause_til_next()
+        status, delay, arrival = sked.delay_til_next()
         ungets.append(arrival)
     for a in reversed(ungets):
         if a is not None:
@@ -35,12 +35,21 @@ async def test_unget_happy():
     assert_order(sked)
 
 
+async def test_unget_invalid():
+    sked = Schedule(1.0, 33 + 1/3)
+    sked.start()
+    with pytest.raises(ValueError):
+        sked.unget(-2)
+    with pytest.raises(ValueError):
+        sked.unget(35.1)
+
+
 async def test_missed():
     sked = Schedule(100, 1)
     sked.start()
     assert len(sked) == 100
     time.sleep(0.1)
-    status, delay, arrival = await sked.pause_til_next()
+    status, delay, arrival = sked.delay_til_next()
     assert status == SampleStatus.MISSED
     assert len(sked) == 99
 
@@ -53,12 +62,12 @@ async def test_basic_operation():
     prev_arrival = None
     for i in range(18):
         assert sked.status == 'running'
-        status, delay, arrival = await sked.pause_til_next()
-        assert 0.0 <= delay and delay <= 12.0, f"Delay {delay} not within duration"
+        status, delay, arrival = sked.delay_til_next()
+        assert 0.0 <= arrival and arrival <= 12.0, f"Arrival {arrival} not within duration"
         assert status == SampleStatus.OK
         assert (prev_arrival is None) or (arrival >= prev_arrival)
         prev_arrival = arrival
-    status, delay, arrival = await sked.pause_til_next()
+    status, delay, arrival = sked.delay_til_next()
     assert status == SampleStatus.DONE
     assert sked.status == 'done'
     # we can't actually assert that more time than duration has passed, as we may not have a sample at the end of the time span
@@ -69,7 +78,7 @@ async def test_basic_operation():
 @pytest.mark.parametrize("duration", [0, 1.0, 30, 90])
 def test_creation(arrival_rate, duration):
     sked = Schedule(arrival_rate, duration)
-    assert len(sked) == int(math.ceil(arrival_rate * duration))
+    assert len(sked) == math.ceil(arrival_rate * duration)
     assert len(sked) == sked.arrival_count
     assert_order(sked)
 

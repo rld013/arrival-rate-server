@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import aiohttp
@@ -22,6 +23,8 @@ logging.basicConfig(level=logging.DEBUG)
 # TODO Add other protocols (WebSocket, Server-sent events, SockJS)
 # TODO Add an autorenew capability so a Schedule will optionally restart when it's exhausted
 # Wont Use Priority Queue rather than deque, for easier putback
+# Done Move async delay code from Schedule to web service
+# Done Use time.monotonic (like asyncio clock) rather than time.time for schedule start
 
 
 def get_schedule(request: Request) -> Schedule:
@@ -89,9 +92,13 @@ async def get_go(request: Request):
 
     the_schedule.start(force=False)
 
-    status, delay, arrival = await the_schedule.pause_til_next()
+    status, delay, arrival = the_schedule.delay_til_next()
+    if delay and delay > 0:
+        await asyncio.sleep(delay)
+
     _logger.info("/wait -> %s delay %s arrival %s", status, delay, arrival)
-    resp = web.json_response({'status': status.name.lower(), 'arrival': arrival}, status=status.value, reason=status.name)
+    resp = web.json_response({'status': status.name.lower(), 'arrival': the_schedule.arrival_time(arrival)},
+                             status=status.value, reason=status.name)
     try:
         await resp.prepare(request)
         await resp.write_eof()
@@ -123,7 +130,7 @@ async def stop_schedule(request: Request):
     return web.json_response(info)
 
 
-def init_app(app):
+def init_app(app:web.Application|None=None):
     if app is None:
         app = web.Application()
     app.add_routes(routes)

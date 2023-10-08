@@ -122,14 +122,14 @@ def time_schedule(clazz, rate, duration, unget_ratio=0.001, putback_prob=0.5):
                 sked.unget(ungot)
                 ungot = None
 
-    return timeit.timeit(lambda: exercise(sked), setup='gc.enable()', number=10000)
+    return timeit.timeit(lambda: exercise(sked), setup='gc.enable()', number=1000)
 
 
 if __name__ == '__main__':
     putback_prob = 0.3333
     print(f"putback probability {putback_prob}")
     print("Duration\tPQ Time\tDeque Time")
-    for dur in [60, 120, 600, 1200, 3000, 5000]:
+    for dur in [60, 120, 600, 2**10, 1200, 3000, 5000, 2**13]:
         pt = time_schedule(PQSchedule, 1000, dur, putback_prob=putback_prob)
         dt = time_schedule(DequeSchedule, 1000, dur, putback_prob=putback_prob)
         print(f"{dur}\t{pt}\t{dt}")

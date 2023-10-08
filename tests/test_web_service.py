@@ -1,4 +1,6 @@
 import math
+import time
+
 from aiohttp import web
 
 from aiohttp.test_utils import TestClient, TestServer
@@ -28,8 +30,12 @@ async def test_create(aiohttp_client:TestClient, loop, arrival_rate, duration):
         assert info['status'] == 'ready'
     assert foobar_ct == 1, f"Bad count {foobar_ct}"
 
-async def test_wait(aiohttp_client:TestClient):
+
+async def test_wait_positive(aiohttp_client:TestClient):
     app = init_app()
+    arrival_rate = 1.5
+    duration = 12
+    count = 18
 
     client = await aiohttp_client(app)
 
@@ -38,7 +44,20 @@ async def test_wait(aiohttp_client:TestClient):
     # so have either to use a real schedule,
     # or monkeypatch asyncio.sleep, perhaps using freezetime.tick() to advance the clock
 
+    resp = await client.put('/foobar', data=dict(arrival_rate=arrival_rate, duration=duration))
+    assert resp.status == 200
 
+    # let the schedule autostart
+    start_time = time.time()
+    for _ in range(count):
+        resp = await client.get('/foobar/wait')
+        assert resp.status == 200
+        payload = await resp.json()
+        arrival = payload.get('arrival')
+        assert 0 <= (arrival - start_time) <= duration
+
+    resp = await client.get('/foobar/wait')
+    assert resp.status == 410
 
 
 

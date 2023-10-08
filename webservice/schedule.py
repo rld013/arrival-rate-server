@@ -1,4 +1,3 @@
-import asyncio
 import math
 import random
 import time
@@ -53,33 +52,47 @@ class SampleStatus(Enum):
 
 
 class Schedule:
+    """
+    A schedule, which is a sequence of arrivals within a duration. An arrival is an offset in [0..duration].
+    Once a schedule is started, it will deliver arrivals in order, along with the delay from the calling instant
+    (but see Lamport ) until the arrival instant.
+    If the arrival instant has passed before you ask for it, you'll get status MISSED.
+    If all the arrivals are gone, you'll get status DONE.
+    """
+
     def __init__(self, rate, duration):
         self.rate = rate
         self.duration = duration
         self.underrun_count = 0
-        self.arrival_count = int(math.ceil(duration * rate))
+        self.arrival_count = math.ceil(rate * duration)
         arrivals = [
-            duration * random.random()
+            random.uniform(0, duration)
             for _ in range(self.arrival_count)
         ]
         # Use a deque because popleft, the critical operation, is O(1)
-        # A PriorityQueue get is O(log n)
+        # PriorityQueue get is O(log n)
         self.arrivals = deque(sorted(arrivals))
         _logger.info("Schedule(%s,%s) len %d", rate, duration, self.arrival_count)
 
         self.running = False
         self.start_time = None
+        """`start_time` is wallclock, for sharing"""
+        self.start_clock = None
+        """`start_clock` is from self.clock, for waiting"""
+        self.clock = time.monotonic
 
     @property
     def status(self):
         if self.running:
             return 'running'
-        elif self.start_time is None:
+        elif self.start_clock is None:
             return 'ready'
         else:
             return 'done'
 
     def unget(self, arrival):
+        if arrival < 0 or arrival > self.duration:
+            raise ValueError(f"Arrival not in 0..{self.duration}")
         deque_insert_ordered(self.arrivals, arrival)
         _logger.warning("unget of delay %f len(arrivals) now %d", arrival, len(self.arrivals))
         self.running = True
@@ -102,9 +115,10 @@ class Schedule:
             status=self.status
         )
 
-    def start(self, force=False):
-        if force or (self.start_time is None):
-            self.start_time = time.time()
+    def start(self, force=False, delay=0.0):
+        if force or (self.start_clock is None):
+            self.start_clock = self.clock() + delay
+            self.start_time = time.time() + delay
             self.running = True
             _logger.info("Schedule started")
         else:
@@ -114,7 +128,13 @@ class Schedule:
         self.running = False
         _logger.info("Schedule stopped")
 
-    async def pause_til_next(self) -> (SampleStatus, float, float):
+    def arrival_time(self, arrival):
+        """Translate an arrival to a wallclock time"""
+        if arrival is None:
+            return None
+        return arrival + self.start_time
+
+    def delay_til_next(self) -> (SampleStatus, float, float):
         delay, arrival = self._next_delay()
         match delay:
             case None:
@@ -123,7 +143,6 @@ class Schedule:
                 self.underrun_count += 1
                 status = SampleStatus.MISSED
             case _:
-                await asyncio.sleep(delay)
                 status = SampleStatus.OK
         return status, delay, arrival
 
@@ -135,9 +154,9 @@ class Schedule:
         except IndexError:
             self.running = False
             return None, None
-        next_time = self.start_time + next_arrival
-        delay = next_time - time.time()
+        next_clock = self.start_clock + next_arrival
+        delay = next_clock - self.clock()
         return delay, next_arrival
 
     def started(self):
-        return self.start_time is not None
+        return self.start_clock is not None
