@@ -111,6 +111,47 @@ paths:
               example:
                 status: done
 
+  /{schedule_id}/draw:
+    parameters:
+      - $ref: '#/components/parameters/ScheduleParam'
+    get:
+      description: Draw one scheduled arrival. The arrival, if available, is returned immediately.
+        It is the caller's responsibility to delay until the arrival time given in the response.
+        
+        If the schedule is not started, it will start at the first /draw request.
+      
+        When a schedule is exhausted, it will stop.
+      operationId: get_go
+      tags: [ schedule ]
+
+      responses:
+        200:
+          description: OK. An arrival was available.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleResponse'
+              example:
+                status: ok
+                arrival: 1696800174.273715
+        418:
+          description: Missed. The next scheduled arrival time has passed. You missed it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleResponse'
+              example:
+                status: missed
+        410:
+          description: Done. The schedule has been consumed, there are no more
+            arrivals. The schedule is stopped.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleResponse'
+              example:
+                status: done
+
   /{schedule_id}/start:
     parameters:
       - $ref: '#/components/parameters/ScheduleParam'
@@ -168,7 +209,7 @@ components:
         start_time:
           type: string
           format: date-time
-          example: 2023-08-31T14:31:00Z
+          example: 2023-08-31T14:31:00.123456
         running:
           type: boolean
         underrun_count:
@@ -194,3 +235,8 @@ components:
             - ok
             - missed
             - done
+        arrival:
+          type: number
+          format: float
+          description: Number of seconds (with fractional part) since the Unix epoch
+

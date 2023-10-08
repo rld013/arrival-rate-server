@@ -1,5 +1,6 @@
 import math
 import time
+from datetime import datetime
 
 from aiohttp import web
 
@@ -28,7 +29,30 @@ async def test_create(aiohttp_client:TestClient, loop, arrival_rate, duration):
         assert info['arrival_count'] == int(math.ceil(arrival_rate * duration)), f"Bad arrival count, got {info['arrival_count']}"
         assert info['running'] is False
         assert info['status'] == 'ready'
+        assert info['start_time'] is None
+
     assert foobar_ct == 1, f"Bad count {foobar_ct}"
+
+
+async def test_start(aiohttp_client:TestClient):
+    app = init_app()
+    arrival_rate = 1.5
+    duration = 12
+    count = 18
+
+    client = await aiohttp_client(app)
+
+    resp = await client.put('/foobar', data=dict(arrival_rate=arrival_rate, duration=duration))
+    assert resp.status == 200
+
+    my_start_time = datetime.utcnow()
+    resp = await client.post('/foobar/start')
+    assert resp.status == 200
+    info = await resp.json()
+    assert info['status'] == 'running'
+    info_start_time = datetime.fromisoformat(info['start_time'])
+    start_time_delta = info_start_time - my_start_time
+    assert abs(start_time_delta.total_seconds()) <= 1.0
 
 
 async def test_wait_positive(aiohttp_client:TestClient):
@@ -46,6 +70,7 @@ async def test_wait_positive(aiohttp_client:TestClient):
 
     resp = await client.put('/foobar', data=dict(arrival_rate=arrival_rate, duration=duration))
     assert resp.status == 200
+    info = await resp.json()
 
     # let the schedule autostart
     start_time = time.time()

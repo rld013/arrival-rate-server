@@ -103,7 +103,7 @@ class Schedule:
 
     def info(self):
         if self.start_time:
-            start_time = datetime.fromtimestamp(self.start_time, tz=timezone.utc).isoformat()
+            start_time = datetime.utcfromtimestamp(self.start_time).isoformat()
         else:
             start_time = None
         return dict(

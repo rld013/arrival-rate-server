@@ -109,6 +109,20 @@ async def get_go(request: Request):
     return resp    # resp has already been sent so this is a no-op
 
 
+@routes.get('/{schedule}/draw')
+async def get_arrival(request: Request):
+    the_schedule = get_schedule(request)
+
+    the_schedule.start(force=False)
+
+    status, delay, arrival = the_schedule.delay_til_next()
+
+    _logger.info("/draw -> %s delay %s arrival %s", status, delay, arrival)
+    resp = web.json_response({'status': status.name.lower(), 'arrival': the_schedule.arrival_time(arrival)},
+                             status=status.value, reason=status.name)
+    return resp
+
+
 @routes.post("/{schedule}/start")
 async def start_schedule(request: Request):
     the_schedule = get_schedule(request)
