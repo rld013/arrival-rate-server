@@ -13,6 +13,7 @@ paths:
     get:
       tags: [schedule]
       description: List all schedules
+      operationId: get_schedule_list
       responses:
         '200':
           description: OK
@@ -26,6 +27,26 @@ paths:
   /{schedule_id}:
     parameters:
       - $ref: '#/components/parameters/ScheduleParam'
+      - name: arrival_rate
+        description:
+          Arrivals per second
+        in: query
+
+        schema:
+          type: number
+          format: double
+          default: 1.0
+
+      - name: duration
+        description:
+          Schedule duration in seconds
+        in: query
+        schema:
+          type: number
+          format: double
+          default: 10.0
+
+
     put:
       description: Create a schedule
       operationId: create_schedule
@@ -78,7 +99,8 @@ paths:
         If the connection is dropped, the arrival time will not be consumed,
         so a reconnect should be attempted.
         
-        If the schedule is not started, it will start at the first /wait request.
+        If the schedule is not started, it will start at the 
+        first /wait or /draw request.
       
         When a schedule is exhausted, it will stop.
       operationId: get_go
@@ -86,30 +108,11 @@ paths:
 
       responses:
         200:
-          description: OK. An arrival was available and that time has been reached
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ScheduleResponse'
-              example:
-                status: ok
+          $ref: '#/components/responses/ArrivalResponse_OK'
         418:
-          description: Missed. The next scheduled arrival time has passed. You missed it.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ScheduleResponse'
-              example:
-                status: missed
+          $ref: '#/components/responses/ArrivalResponse_MISSED'
         410:
-          description: Done. The schedule has been consumed, there are no more
-            arrivals. The schedule is stopped.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ScheduleResponse'
-              example:
-                status: done
+          $ref: '#/components/responses/ArrivalResponse_DONE'
 
   /{schedule_id}/draw:
     parameters:
@@ -118,44 +121,25 @@ paths:
       description: Draw one scheduled arrival. The arrival, if available, is returned immediately.
         It is the caller's responsibility to delay until the arrival time given in the response.
         
-        If the schedule is not started, it will start at the first /draw request.
+        If the schedule is not started, it will start at the 
+        first /wait or /draw request.
       
         When a schedule is exhausted, it will stop.
-      operationId: get_go
+      operationId: get_arrival
       tags: [ schedule ]
 
       responses:
         200:
-          description: OK. An arrival was available.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ScheduleResponse'
-              example:
-                status: ok
-                arrival: 1696800174.273715
+          $ref: '#/components/responses/ArrivalResponse_OK'
         418:
-          description: Missed. The next scheduled arrival time has passed. You missed it.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ScheduleResponse'
-              example:
-                status: missed
+          $ref: '#/components/responses/ArrivalResponse_MISSED'
         410:
-          description: Done. The schedule has been consumed, there are no more
-            arrivals. The schedule is stopped.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ScheduleResponse'
-              example:
-                status: done
+          $ref: '#/components/responses/ArrivalResponse_DONE'
 
   /{schedule_id}/start:
     parameters:
       - $ref: '#/components/parameters/ScheduleParam'
-    get:
+    post:
       description: Start a schedule
       operationId: start_schedule
       tags: [schedule]
@@ -170,7 +154,7 @@ paths:
   /{schedule_id}/stop:
     parameters:
       - $ref: '#/components/parameters/ScheduleParam'
-    get:
+    post:
       description: Stop a schedule
       operationId: stop_schedule
       tags: [schedule]
@@ -224,7 +208,7 @@ components:
             - running
             - ready
             - done
-    ScheduleResponse:
+    ArrivalResponseSchema:
       type: object
       required:
         - status
@@ -237,6 +221,40 @@ components:
             - done
         arrival:
           type: number
-          format: float
-          description: Number of seconds (with fractional part) since the Unix epoch
+          format: double
+          description: 
+            The next scheduled arrival time, in number of seconds 
+            (with fractional part) since the Unix epoch.
+  responses:
+
+    ArrivalResponse_OK:
+          description: OK. An arrival was available and, if using the /wait endpoint, that time has been reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArrivalResponseSchema'
+              example:
+                status: ok
+                arrival: 1696800174.273715
+
+    ArrivalResponse_MISSED:
+      description: Missed. The next scheduled arrival time has passed. You missed it.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ArrivalResponseSchema'
+          example:
+            status: missed
+            arrival: 1696800174.273715
+
+    ArrivalResponse_DONE:
+      description: Done. The schedule has been consumed, there are no more
+        arrivals. The schedule is stopped.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ArrivalResponseSchema'
+          example:
+            status: done
+
 

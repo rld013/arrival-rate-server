@@ -147,6 +147,7 @@ class Schedule:
         return status, delay, arrival
 
     def _next_delay(self) -> (float, float):
+        """Get the next time from the schedule, and compute the delay until it happens."""
         if not self.running:
             return None, None
         try:
